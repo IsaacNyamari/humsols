@@ -1,26 +1,213 @@
 @import "tailwindcss";
 
+/* Dark mode follows [data-theme="dark"] on <html>, set before paint by the
+   inline script in app/layout.tsx (system preference unless the visitor chose). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --bg-soft: #f3f6fb;
+  --fg: #0a1628;
+  --muted: #4a5870;
+  --border: #dde4ee;
+  --card: #ffffff;
+  --primary: #0b58ad;
+  --primary-hover: #094a92;
+  --primary-fg: #ffffff;
+  --accent: #00dace;
+  --accent-fg: #010c1b;
+  --danger: #b42318;
+  --success: #067647;
+  --ring: #00b3a9;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #010c1b;
+  --bg-soft: #061427;
+  --fg: #e8eef7;
+  --muted: #a3b3c9;
+  --border: #1a2c47;
+  --card: #071a31;
+  --primary: #4d8ce6;
+  --primary-hover: #6aa0eb;
+  --primary-fg: #010c1b;
+  --accent: #00dace;
+  --accent-fg: #010c1b;
+  --danger: #f97066;
+  --success: #47cd89;
+  --ring: #00dace;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: #010c1b;
+  --color-royal: #0b58ad;
+  --color-royal-bright: #4d8ce6;
+  --color-aqua: #00dace;
+
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .container-page {
+    width: 100%;
+    max-width: 76rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) {
+    .container-page {
+      padding-inline: 1.5rem;
+    }
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 1.25rem;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* Markdown content rendered from the database. */
+  .prose-hs {
+    line-height: 1.75;
+    color: var(--fg);
+  }
+  .prose-hs > * + * {
+    margin-top: 1em;
+  }
+  .prose-hs h2 {
+    font-size: 1.5rem;
+    margin-top: 2em;
+  }
+  .prose-hs h3 {
+    font-size: 1.25rem;
+    margin-top: 1.6em;
+  }
+  .prose-hs a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose-hs ul {
+    list-style: disc;
+    padding-left: 1.4em;
+  }
+  .prose-hs ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+  }
+  .prose-hs li + li {
+    margin-top: 0.35em;
+  }
+  .prose-hs blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 1em;
+    color: var(--muted);
+  }
+  .prose-hs code {
+    background: var(--bg-soft);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .prose-hs pre {
+    background: var(--bg-soft);
+    padding: 1em;
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  .prose-hs table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .prose-hs th,
+  .prose-hs td {
+    border: 1px solid var(--border);
+    padding: 0.4em 0.6em;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    animation: reveal 0.6s ease-out both;
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
