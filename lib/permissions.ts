@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   "settings:write": ["owner", "admin"],
   "users:manage": ["owner", "admin"],
   "audit:read": ["owner", "admin"],
+  "deploy:run": ["owner", "admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -1,237 +1,114 @@
 # Deploying humsols.com
 
-Target: the existing Ubuntu 24.04 server (nginx, certbot, BIND, Node.js 22). The app replaces the static holding page at `https://humsols.com`.
+Production runs on the Ubuntu 24.04 server at `217.20.120.238` (nginx, certbot, BIND, Stalwart mail, MySQL for HS Water Billing).
 
-> **Do not touch** these ports and services: 80/443 (nginx), 3306 (MySQL), 6001 (Reverb for HS Water Billing), 8080 (Stalwart admin), 25/465/587/993/995/4190 (mail).
-> The app listens on **127.0.0.1:3000** and MongoDB on **127.0.0.1:27017**. Neither is exposed publicly.
+> **Do not use or change** these ports: 80/443 (nginx), 3306 (MySQL), 6001 (Reverb for HS Water Billing), 8080 (Stalwart admin), 25/465/587/993/995/4190 (mail).
 
-Commands below are run as a sudo-capable user. Read each step before running it.
+## Day-to-day: deploying from the admin
 
----
+1. Push to `main` on GitHub (`https://github.com/IsaacNyamari/humsols`).
+2. In **Admin › Deploy** (owners and admins), click **Check for updates**. It lists the new commits on GitHub that are not live yet.
+3. Click **Deploy**. The pipeline:
+   - pulls `main`
+   - runs `npm ci`, only if `package-lock.json` changed
+   - runs `npm run seed`, which adds new default content and never overwrites edits
+   - builds into `.next-stage` while the current version keeps serving visitors
+   - swaps the new build in, restarts `humsols-web`, and checks that the site answers
 
-## 1. Check that the ports are free
+   If any step fails, the previous code and build are restored automatically, and the log on the page shows what went wrong.
 
-```bash
-sudo ss -ltnp | grep -E ':(3000|27017)\b' || echo "3000 and 27017 are free"
-```
+From a shell, the same deploy is `sudo systemctl start humsols-deploy` (log: `/var/www/humsols-data/deploy/deploy.log`).
 
-If something already uses 3000, choose another port (e.g. 3010) and use it everywhere `3000` appears below.
+## Server layout
 
-## 2. Install MongoDB Community (localhost only, auth on)
+| What                                   | Where                                                                                                                         |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| App (git checkout, owned by `humsols`) | `/var/www/humsols`                                                                                                            |
+| Uploads                                | `/var/www/humsols-data/uploads`                                                                                               |
+| Deploy status and log                  | `/var/www/humsols-data/deploy/`                                                                                               |
+| Environment (secrets)                  | `/etc/humsols/humsols.env` (root:humsols, 640)                                                                                |
+| Deploy settings (`REPO_URL`, `BRANCH`) | `/etc/humsols/deploy.conf`                                                                                                    |
+| Web service                            | `humsols-web.service`: `next start` on **127.0.0.1:3000** as user `humsols`                                                   |
+| Deploy job                             | `humsols-deploy.service` → `/usr/local/bin/humsols-deploy-pipeline` (root, one-shot)                                          |
+| Permission for the admin button        | `/etc/polkit-1/rules.d/50-humsols-deploy.rules` (lets `humsols` start that one unit)                                          |
+| Database                               | MongoDB 8.0 on 127.0.0.1:27017, auth on, database `humsols`                                                                   |
+| Backups                                | `/etc/cron.d/humsols-backup` → `/usr/local/bin/humsols-backup`, nightly, 14 days, in `/var/backups/humsols`                   |
+| nginx                                  | `/etc/nginx/sites-available/humsols.com`: proxies to :3000 and shows the holding page (`/var/www/humsols.com`) on 502/503/504 |
 
-```bash
-sudo apt-get install -y gnupg curl
-curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
-sudo apt-get update && sudo apt-get install -y mongodb-org
-sudo systemctl enable --now mongod
-```
+The source for the deploy pieces lives in this repo under [`deploy/server/`](deploy/server/).
 
-Confirm it is bound to localhost only (the default `/etc/mongod.conf` has `bindIp: 127.0.0.1`):
+## Environment
 
-```bash
-grep -A2 '^net:' /etc/mongod.conf
-```
-
-Create an admin user and a dedicated app user (use long random passwords, e.g. `openssl rand -base64 30`):
-
-```bash
-mongosh --quiet <<'EOF'
-use admin
-db.createUser({ user: "root", pwd: passwordPrompt(), roles: ["root"] })
-use humsols
-db.createUser({ user: "humsols", pwd: passwordPrompt(), roles: [{ role: "readWrite", db: "humsols" }] })
-EOF
-```
-
-Turn on authentication: add this to `/etc/mongod.conf`, then restart MongoDB.
-
-```yaml
-security:
-  authorization: enabled
-```
-
-```bash
-sudo systemctl restart mongod
-```
-
-## 3. App user and code
-
-```bash
-sudo adduser --system --group --home /srv/humsols humsols
-sudo mkdir -p /srv/humsols/app /srv/humsols/uploads /etc/humsols
-sudo chown -R humsols:humsols /srv/humsols
-sudo -u humsols git clone <REPOSITORY_URL> /srv/humsols/app
-```
-
-## 4. Environment file
-
-Create `/etc/humsols/humsols.env` (owner root, mode 640, group humsols):
-
-```bash
-sudo install -m 640 -o root -g humsols /dev/null /etc/humsols/humsols.env
-sudo nano /etc/humsols/humsols.env
-```
+`/etc/humsols/humsols.env` holds everything listed in [.env.example](.env.example). Production-specific values:
 
 ```ini
 NODE_ENV=production
 HOSTNAME=127.0.0.1
 PORT=3000
-MONGODB_URI=mongodb://humsols:<APP_DB_PASSWORD>@127.0.0.1:27017/humsols?authSource=humsols
-AUTH_SECRET=<openssl rand -base64 32>
+SITE_URL=https://humsols.com
 AUTH_URL=https://humsols.com
 AUTH_TRUST_HOST=true
-SITE_URL=https://humsols.com
-MAIL_DRIVER=smtp
 SMTP_HOST=mail.humsols.com
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER=info@humsols.com
-SMTP_PASSWORD=<mailbox password>
-MAIL_FROM="Human Solutions <info@humsols.com>"
-LEAD_NOTIFY_TO=info@humsols.com
-SEED_OWNER_EMAIL=<owner email>
-SEED_OWNER_PASSWORD=<strong password; remove from this file after seeding>
-UPLOAD_DIR=/srv/humsols/uploads
-MAX_UPLOAD_MB=10
+UPLOAD_DIR=/var/www/humsols-data/uploads
+DEPLOY_ENABLED=true
 ```
 
-## 5. First build and seed
+`npm run build` reads published content from MongoDB, so MongoDB must be running during builds. It always is on this server.
 
-The build reads content from MongoDB, so load the environment for these commands:
+## Installing or updating the deploy pipeline pieces
+
+Only needed when files in `deploy/server/` change:
 
 ```bash
-cd /srv/humsols/app
-sudo -u humsols bash -c 'set -a; source /etc/humsols/humsols.env; set +a; npm ci && npm run seed && npm run build'
-```
-
-Then remove `SEED_OWNER_PASSWORD` from `/etc/humsols/humsols.env`. The account is created and its password is never changed by later seeds. Sign in and change it from **Admin › Account** if you like.
-
-## 6. systemd service
-
-`/etc/systemd/system/humsols.service`:
-
-```ini
-[Unit]
-Description=humsols.com (Next.js)
-After=network.target mongod.service
-Requires=mongod.service
-
-[Service]
-Type=simple
-User=humsols
-Group=humsols
-WorkingDirectory=/srv/humsols/app
-EnvironmentFile=/etc/humsols/humsols.env
-ExecStart=/usr/bin/npm start -- -H 127.0.0.1 -p 3000
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=full
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=/srv/humsols
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
+cd /var/www/humsols && sudo -u humsols git pull
+sudo install -m 750 deploy/server/humsols-deploy-pipeline /usr/local/bin/humsols-deploy-pipeline
+sudo install -m 644 deploy/server/humsols-deploy.service /etc/systemd/system/humsols-deploy.service
+sudo install -m 644 deploy/server/50-humsols-deploy.rules /etc/polkit-1/rules.d/50-humsols-deploy.rules
 sudo systemctl daemon-reload
-sudo systemctl enable --now humsols
-curl -sI http://127.0.0.1:3000 | head -1     # expect HTTP/1.1 200
 ```
 
-## 7. Switch nginx from the holding page to the app
+## Email (SMTP via Stalwart on the same server)
 
-Back up the current site file first. Only the `humsols.com` server block changes; `water-billing.humsols.com` and `mail.humsols.com` are separate files and stay untouched.
+The site sends through `mail.humsols.com:465` as `info@humsols.com`. Stalwart must present the Let's Encrypt certificate, not its built-in self-signed one, or sending fails with `self-signed certificate`. The certificate is kept up to date in `/etc/stalwart/certs/` by `/etc/letsencrypt/renewal-hooks/deploy/stalwart.sh`.
+
+To check SMTP from the server without sending mail:
 
 ```bash
-ls /etc/nginx/sites-enabled/
-sudo cp /etc/nginx/sites-available/humsols.com /etc/nginx/sites-available/humsols.com.bak-$(date +%F)
+sudo -u humsols -H bash -c 'set -a; . /etc/humsols/humsols.env; set +a; cd /var/www/humsols; node -e "require(\"nodemailer\").createTransport({host:process.env.SMTP_HOST,port:+process.env.SMTP_PORT,secure:true,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}}).verify().then(()=>console.log(\"SMTP OK\"),e=>console.log(\"SMTP FAILED:\",e.message))"'
 ```
 
-In the **HTTPS** (`listen 443 ssl`) server block for `humsols.com www.humsols.com`, **keep** every `ssl_certificate…` and `include /etc/letsencrypt/…` line that certbot added. Replace the `root /var/www/humsols.com;` and `location /` lines with:
+Failed sends never lose a lead. They're recorded on the lead, flagged on the dashboard, and can be retried from the lead page.
 
-```nginx
-    client_max_body_size 12m;            # admin image uploads (MAX_UPLOAD_MB + headroom)
+## Backups and restore
 
-    gzip on;
-    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/xml;
-
-    location /_next/static/ {
-        proxy_pass http://127.0.0.1:3000;
-        expires 365d;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        access_log off;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 60s;
-    }
-```
-
-`X-Real-IP` matters: the form rate limiter uses it to identify visitors.
-
-Leave the port-80 block (the certbot HTTP→HTTPS redirect) as it is. Then test and reload:
+Nightly at 02:45. To restore (this replaces the current data):
 
 ```bash
-sudo nginx -t && sudo systemctl reload nginx
-curl -sI https://humsols.com | head -1
-curl -sI https://water-billing.humsols.com | head -1     # still fine
+mongorestore --host 127.0.0.1 --username mongoadmin --authenticationDatabase admin \
+  --config /etc/humsols/mongodump.yaml --gzip --archive=/var/backups/humsols/humsols-<date>.archive.gz --drop
 ```
 
-**Rollback:** restore the `.bak-*` file, run `sudo nginx -t && sudo systemctl reload nginx`. The holding page in `/var/www/humsols.com` is untouched.
+Uploads (`/var/www/humsols-data/uploads`) are not in the database dump, so copy that folder off the server as well.
 
-## 8. Nightly MongoDB backup (14-day retention)
-
-`/usr/local/bin/humsols-backup`:
+## Troubleshooting
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-set -a; source /etc/humsols/humsols.env; set +a
-DEST=/var/backups/humsols
-STAMP=$(date +%F-%H%M)
-mkdir -p "$DEST"
-mongodump --uri="$MONGODB_URI" --archive="$DEST/humsols-$STAMP.archive.gz" --gzip
-tar -czf "$DEST/uploads-$STAMP.tar.gz" -C "$(dirname "$UPLOAD_DIR")" "$(basename "$UPLOAD_DIR")"
-find "$DEST" -type f -mtime +14 -delete
+systemctl status humsols-web                 # is the site running?
+journalctl -u humsols-web -n 100             # app logs (mail errors are tagged [mail])
+cat /var/www/humsols-data/deploy/deploy.log  # last deploy
+systemctl status humsols-deploy              # deploy job state
 ```
 
-```bash
-sudo chmod 750 /usr/local/bin/humsols-backup
-sudo mkdir -p /var/backups/humsols && sudo chmod 700 /var/backups/humsols
-echo '30 2 * * * root /usr/local/bin/humsols-backup >> /var/log/humsols-backup.log 2>&1' | sudo tee /etc/cron.d/humsols-backup
-sudo /usr/local/bin/humsols-backup && ls -lh /var/backups/humsols
-```
+If the app is down, nginx shows the holding page automatically.
 
-Restore: `mongorestore --uri="$MONGODB_URI" --archive=/var/backups/humsols/humsols-<stamp>.archive.gz --gzip --drop`.
+## First-time setup (already done on this server)
 
-Copy backups off the server regularly (for example with rsync to another machine).
+For a fresh server:
 
-## 9. Updating / redeploying
-
-`scripts/deploy.sh` (in this repository) pulls, installs, builds and restarts:
-
-```bash
-sudo -u humsols /srv/humsols/app/scripts/deploy.sh && sudo systemctl restart humsols
-```
-
-The script stops before restarting if the build fails, so the running site keeps working.
-
-## 10. Checks after go-live
-
-- Submit the contact form. Confirm the email arrives at info@humsols.com and the auto-reply arrives at the address you used.
-- Check **Admin › Dashboard** for "email delivery failed" warnings (wrong SMTP settings show up there).
-- Confirm `https://humsols.com/sitemap.xml` and `/robots.txt` load.
-- Run Lighthouse (mobile) on the home page.
+1. Install MongoDB 8.0, bound to 127.0.0.1 with authorization enabled. Create a `humsols` database user with `readWrite` on `humsols`.
+2. Create the system user `humsols`, the folders above, `/etc/humsols/humsols.env` and `deploy.conf`.
+3. Clone into `/var/www/humsols` as `humsols`. Run `npm ci`. Set `SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD`, then run `npm run seed` and `npm run build` with the env loaded. Remove `SEED_OWNER_PASSWORD` afterwards.
+4. Install `humsols-web.service` and the three deploy pieces above. Run `systemctl enable --now humsols-web`.
+5. Point the nginx site at `127.0.0.1:3000`, keeping the certbot lines.

@@ -6,3 +6,5 @@ playwright-report
 package-lock.json
 next-env.d.ts
 .next-e2e
+.next-stage
+.next-prev

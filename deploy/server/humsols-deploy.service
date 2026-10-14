@@ -1,0 +1,11 @@
+# /etc/systemd/system/humsols-deploy.service
+# One-shot deploy job, started from Admin › Deploy (see 50-humsols-deploy.rules).
+[Unit]
+Description=HumSols website deploy pipeline
+After=network-online.target mongod.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/humsols-deploy-pipeline
+TimeoutStartSec=30min

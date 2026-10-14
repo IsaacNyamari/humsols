@@ -49,3 +49,5 @@ next-env.d.ts
 /playwright-report
 /playwright/.cache
 /.next-e2e
+/.next-stage
+/.next-prev

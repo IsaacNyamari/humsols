@@ -41,6 +41,7 @@ const NAV: { href: string; label: string; icon: string; permission: Permission }
   { href: "/admin/settings", label: "Settings", icon: "settings", permission: "settings:write" },
   { href: "/admin/users", label: "Users", icon: "users", permission: "users:manage" },
   { href: "/admin/audit", label: "Audit log", icon: "history", permission: "audit:read" },
+  { href: "/admin/deploy", label: "Deploy", icon: "bolt", permission: "deploy:run" },
 ];
 
 export function AdminSidebar({ user }: { user: { name: string; email: string; role: Role } }) {

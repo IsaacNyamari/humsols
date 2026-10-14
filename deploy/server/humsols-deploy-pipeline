@@ -1,0 +1,104 @@
+#!/bin/bash
+# HumSols deploy pipeline — run by humsols-deploy.service (as root), started
+# from Admin › Deploy. Installed at /usr/local/bin/humsols-deploy-pipeline.
+#
+#   pull -> npm ci (only if the lockfile changed) -> seed -> build into
+#   .next-stage (old version keeps serving) -> swap -> restart -> health check
+#
+# Any failure restores the previous code/build. Progress goes to
+# $STATE/status.json and $STATE/deploy.log, which the admin page reads.
+set -uo pipefail
+
+APP=/var/www/humsols
+ENV_FILE=/etc/humsols/humsols.env
+STATE=/var/www/humsols-data/deploy
+SERVICE=humsols-web
+BRANCH=main
+[ -f /etc/humsols/deploy.conf ] && . /etc/humsols/deploy.conf
+BRANCH=${BRANCH:-main}
+
+mkdir -p "$STATE"
+chown humsols:humsols "$STATE"
+LOG="$STATE/deploy.log"
+: >"$LOG"
+chown humsols:humsols "$LOG"
+exec >>"$LOG" 2>&1
+
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+log() { echo "[$(date +%H:%M:%S)] $*"; }
+
+# status key=value ... (merged into status.json)
+status() {
+  node -e '
+    const fs = require("fs");
+    const [file, ...pairs] = process.argv.slice(1);
+    let s = {};
+    try { s = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+    for (const p of pairs) { const i = p.indexOf("="); s[p.slice(0, i)] = p.slice(i + 1); }
+    fs.writeFileSync(file + ".tmp", JSON.stringify(s, null, 2));
+    fs.renameSync(file + ".tmp", file);
+  ' "$STATE/status.json" "$@"
+  chown humsols:humsols "$STATE/status.json"
+}
+
+as_app() { sudo -u humsols -H bash -c "set -a; . $ENV_FILE; set +a; cd $APP; $*"; }
+
+FROM=$(as_app "git rev-parse HEAD")
+status state=running step="Pulling from GitHub" startedAt="$(now)" finishedAt= message= fromCommit="$FROM" toCommit=
+
+fail() {
+  log "✗ $1"
+  log "→ Restoring the previous version ($FROM)"
+  as_app "git reset --hard --quiet $FROM" || true
+  if [ "${DEPS_CHANGED:-0}" = 1 ]; then as_app "npm ci --no-audit --no-fund" || true; fi
+  as_app "rm -rf .next-stage" || true
+  if [ "${SWAPPED:-0}" = 1 ] && [ -d "$APP/.next-prev" ]; then
+    as_app "rm -rf .next && mv .next-prev .next"
+    systemctl restart "$SERVICE" || true
+  fi
+  status state=failed step="Failed" message="$1" finishedAt="$(now)"
+  log "Previous version is live."
+  exit 1
+}
+
+log "→ Fetching $BRANCH"
+as_app "git fetch --quiet origin $BRANCH && git reset --hard --quiet origin/$BRANCH" || fail "Could not pull from GitHub"
+TO=$(as_app "git rev-parse HEAD")
+log "  $(as_app "git log -1 --format='%h %s'")"
+status toCommit="$TO"
+
+DEPS_CHANGED=0
+if [ "$FROM" != "$TO" ] && ! as_app "git diff --quiet $FROM $TO -- package-lock.json"; then DEPS_CHANGED=1; fi
+if [ "$DEPS_CHANGED" = 1 ] || [ ! -d "$APP/node_modules" ]; then
+  status step="Installing packages"
+  log "→ Installing packages (package-lock.json changed)"
+  as_app "npm ci --no-audit --no-fund" || fail "npm ci failed"
+else
+  log "→ Packages unchanged, skipping npm ci"
+fi
+
+status step="Updating content"
+log "→ Seeding new default content (never overwrites edits)"
+as_app "npm run seed" || fail "Seed failed"
+
+status step="Building (a few minutes)"
+log "→ Building into .next-stage"
+as_app "rm -rf .next-stage && NEXT_DIST_DIR=.next-stage NEXT_TELEMETRY_DISABLED=1 npm run build" || fail "Build failed — see the log above"
+
+status step="Switching to the new version"
+log "→ Swapping builds and restarting"
+as_app "rm -rf .next-prev && mv .next .next-prev && mv .next-stage .next" || fail "Could not swap builds"
+SWAPPED=1
+systemctl restart "$SERVICE" || fail "Could not restart $SERVICE"
+
+status step="Checking the site"
+for i in $(seq 1 30); do
+  if curl -fs -o /dev/null "http://127.0.0.1:3000/"; then
+    as_app "rm -rf .next-prev"
+    status state=success step="Done" deployedCommit="$TO" deployedAt="$(now)" finishedAt="$(now)" message="Deployed $(as_app "git log -1 --format=%h")"
+    log "✓ Live: $(as_app "git log -1 --format='%h %s'")"
+    exit 0
+  fi
+  sleep 2
+done
+fail "The new version did not respond after restart"

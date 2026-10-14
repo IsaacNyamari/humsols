@@ -1,0 +1,12 @@
+// /etc/polkit-1/rules.d/50-humsols-deploy.rules
+// Let the web app's user start the deploy job — and nothing else.
+polkit.addRule(function (action, subject) {
+  if (
+    action.id == "org.freedesktop.systemd1.manage-units" &&
+    action.lookup("unit") == "humsols-deploy.service" &&
+    action.lookup("verb") == "start" &&
+    subject.user == "humsols"
+  ) {
+    return polkit.Result.YES;
+  }
+});
