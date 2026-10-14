@@ -8,12 +8,10 @@ import { getPageCopy, getSettings, getTeam } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 import { placeholderText } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "About us",
-  description:
-    "Human Solutions (HumSols) is a Nairobi technology company in Westlands building software and installing CCTV and internet.",
-  path: "/about",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("about");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/about" });
+}
 
 export default async function AboutPage() {
   const [copy, team, settings] = await Promise.all([

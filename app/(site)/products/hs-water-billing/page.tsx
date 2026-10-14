@@ -9,12 +9,14 @@ import { getPageCopy, getSettings } from "@/lib/data/public";
 import { pageMetadata, siteUrl } from "@/lib/seo";
 import { placeholderText } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "HS Water Billing — water billing & borehole project management",
-  description:
-    "HS Water Billing is a multi-tenant platform for water billing and borehole project management. Built by Human Solutions.",
-  path: "/products/hs-water-billing",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("hsWaterBilling");
+  return pageMetadata({
+    title: copy.seoTitle,
+    description: copy.seoDescription,
+    path: "/products/hs-water-billing",
+  });
+}
 
 const stripPlaceholder = (s: string) => s.replace(/\s*\[PLACEHOLDER[^\]]*\]/g, "");
 

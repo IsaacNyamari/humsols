@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { ButtonA, ButtonLink } from "@/components/ui/button";
@@ -19,7 +20,18 @@ import {
   getSettings,
   getTestimonials,
 } from "@/lib/data/public";
+import { pageMetadata } from "@/lib/seo";
 import { telHref } from "@/lib/utils";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("home");
+  return pageMetadata({
+    title: copy.seoTitle,
+    description: copy.seoDescription,
+    path: "/",
+    absoluteTitle: true,
+  });
+}
 
 export default async function HomePage() {
   const [copy, settings, services, projects, packages, testimonials] = await Promise.all([

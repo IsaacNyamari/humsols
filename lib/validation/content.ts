@@ -154,6 +154,15 @@ export const faqInput = z.object({
   published: z.boolean().default(true),
 });
 
+/** Accept a bare verification code or the whole <meta ... content="..."> tag. */
+const verificationCode = z
+  .string()
+  .trim()
+  .max(500)
+  .default("")
+  .transform((value) => value.match(/content=["']([^"']+)["']/i)?.[1] ?? value)
+  .pipe(z.string().regex(/^[\w.-]*$/, "Paste only the code (letters, numbers, - and _)"));
+
 export const settingsInput = z.object({
   companyName: required("Company name", 120),
   shortName: text(40).default("HumSols"),
@@ -183,6 +192,9 @@ export const settingsInput = z.object({
     href: text(300).optional(),
     active: z.boolean().default(false),
   }),
+  verification: z
+    .object({ google: verificationCode, bing: verificationCode })
+    .default({ google: "", bing: "" }),
   notificationRecipients: z
     .array(z.email("Enter valid email addresses"))
     .min(1, "Add at least one recipient")

@@ -3,12 +3,14 @@ import { CtaBand, PageHeader, Section, ServiceCard } from "@/components/site/sec
 import { getPageCopy, getServices, getSettings } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Services",
-  description:
-    "Web applications, custom software, billing systems, websites, CCTV installation and internet — from one Nairobi team.",
-  path: "/services",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("services");
+  return pageMetadata({
+    title: copy.seoTitle,
+    description: copy.seoDescription,
+    path: "/services",
+  });
+}
 
 export default async function ServicesPage() {
   const [copy, services, settings] = await Promise.all([

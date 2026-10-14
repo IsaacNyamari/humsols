@@ -10,8 +10,11 @@ export function pageMetadata({
   path,
   image,
   type = "website",
+  absoluteTitle = false,
 }: {
   title: string;
+  /** Use the title as-is, without the "| HumSols" suffix (home page). */
+  absoluteTitle?: boolean;
   description: string;
   path: string;
   image?: string;
@@ -21,7 +24,7 @@ export function pageMetadata({
     ? [{ url: image }]
     : [{ url: "/brand/humsols-logo.png", width: 868, height: 184, alt: "Human Solutions" }];
   return {
-    title,
+    title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: { canonical: path },
     openGraph: { title, description, url: path, type, images },

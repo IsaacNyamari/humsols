@@ -7,11 +7,10 @@ import { Badge } from "@/components/ui/card";
 import { getJobs, getPageCopy, getSettings } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Careers",
-  description: "Open roles at Human Solutions in Nairobi.",
-  path: "/careers",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("careers");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/careers" });
+}
 
 export default async function CareersPage() {
   const [copy, jobs, settings] = await Promise.all([

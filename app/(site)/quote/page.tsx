@@ -5,12 +5,10 @@ import { PageHeader } from "@/components/site/sections";
 import { getPageCopy } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Get a quote",
-  description:
-    "Request a free quote for software, billing systems, websites, CCTV or internet. Priced in KES.",
-  path: "/quote",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("quote");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/quote" });
+}
 
 export default async function QuotePage(props: PageProps<"/quote">) {
   const copy = await getPageCopy("quote");

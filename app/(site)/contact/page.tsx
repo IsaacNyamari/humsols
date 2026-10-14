@@ -7,12 +7,10 @@ import { getPageCopy, getSettings } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 import { placeholderText, telHref, whatsappHref } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Contact us",
-  description:
-    "Call +254 725 742 737, WhatsApp or email info@humsols.com. Human Solutions, Westlands, Nairobi.",
-  path: "/contact",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("contact");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/contact" });
+}
 
 export default async function ContactPage() {
   const [copy, s] = await Promise.all([getPageCopy("contact"), getSettings()]);

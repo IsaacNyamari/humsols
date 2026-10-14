@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   announcement: { text: "", active: false },
   notificationRecipients: env.leadNotifyTo,
+  verification: { google: "", bing: "" },
 };
 
 export async function getSiteSettings(): Promise<SiteSettings> {

@@ -8,12 +8,14 @@ import { getFaqs, getPackages, getPageCopy } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 import type { PackageDTO } from "@/lib/types";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Home & business internet",
-  description:
-    "Internet packages for homes and businesses in Nairobi, priced in KES. Check coverage for your area and request installation.",
-  path: "/internet",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("internet");
+  return pageMetadata({
+    title: copy.seoTitle,
+    description: copy.seoDescription,
+    path: "/internet",
+  });
+}
 
 function PackageGrid({ packages }: { packages: PackageDTO[] }) {
   if (!packages.length)

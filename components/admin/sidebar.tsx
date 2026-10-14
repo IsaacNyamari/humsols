@@ -38,6 +38,7 @@ const NAV: { href: string; label: string; icon: string; permission: Permission }
   { href: "/admin/content/posts", label: "Blog posts", icon: "file", permission: "content:write" },
   { href: "/admin/content/jobs", label: "Jobs", icon: "briefcase", permission: "content:write" },
   { href: "/admin/content/faqs", label: "FAQs", icon: "check", permission: "content:write" },
+  { href: "/admin/seo", label: "SEO", icon: "search", permission: "content:write" },
   { href: "/admin/settings", label: "Settings", icon: "settings", permission: "settings:write" },
   { href: "/admin/users", label: "Users", icon: "users", permission: "users:manage" },
   { href: "/admin/audit", label: "Audit log", icon: "history", permission: "audit:read" },

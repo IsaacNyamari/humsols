@@ -17,6 +17,7 @@ export interface ISiteSetting {
   seo: { title: string; description: string; ogImage?: string };
   announcement: { text: string; href?: string; active: boolean };
   notificationRecipients: string[];
+  verification: { google: string; bing: string };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +49,10 @@ const siteSettingSchema = new Schema<ISiteSetting>(
       active: { type: Boolean, default: false },
     },
     notificationRecipients: { type: [String], default: [] },
+    verification: {
+      google: { type: String, default: "" },
+      bing: { type: String, default: "" },
+    },
   },
   { timestamps: true },
 );

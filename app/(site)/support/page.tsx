@@ -6,11 +6,10 @@ import { getPageCopy, getSettings } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 import { telHref, whatsappHref } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Customer support",
-  description: "Report an internet, CCTV, software or website issue to Human Solutions support.",
-  path: "/support",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("support");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/support" });
+}
 
 export default async function SupportPage() {
   const [copy, s] = await Promise.all([getPageCopy("support"), getSettings()]);

@@ -7,12 +7,10 @@ import { ButtonLink } from "@/components/ui/button";
 import { getPageCopy, getService } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = pageMetadata({
-  title: "CCTV installation — book a free site survey",
-  description:
-    "CCTV installation in Nairobi: free site survey, IP and analog cameras, NVR/DVR setup, remote viewing on your phone and maintenance.",
-  path: "/cctv",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("cctv");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/cctv" });
+}
 
 export default async function CctvPage() {
   const [copy, service] = await Promise.all([getPageCopy("cctv"), getService("cctv-installation")]);

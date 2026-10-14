@@ -6,12 +6,14 @@ import { getPageCopy, getProjects, getServices, getSettings } from "@/lib/data/p
 import { pageMetadata } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Portfolio",
-  description:
-    "Projects and case studies from Human Solutions: software, billing systems, websites, CCTV and internet.",
-  path: "/portfolio",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("portfolio");
+  return pageMetadata({
+    title: copy.seoTitle,
+    description: copy.seoDescription,
+    path: "/portfolio",
+  });
+}
 
 export default async function PortfolioPage(props: PageProps<"/portfolio">) {
   const [copy, services, settings] = await Promise.all([

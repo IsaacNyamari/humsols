@@ -7,12 +7,10 @@ import { getPageCopy, getPosts } from "@/lib/data/public";
 import { pageMetadata } from "@/lib/seo";
 import { formatDate } from "@/lib/utils";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Blog",
-  description:
-    "News and practical articles from Human Solutions on software, billing, websites, CCTV and internet.",
-  path: "/blog",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getPageCopy("blog");
+  return pageMetadata({ title: copy.seoTitle, description: copy.seoDescription, path: "/blog" });
+}
 
 export default async function BlogPage() {
   const [copy, posts] = await Promise.all([getPageCopy("blog"), getPosts()]);
